@@ -89,7 +89,7 @@ class VkParser:
         """
         Запись последнего ID
         """
-        with open("logs/last_id.txt", "w", encoding="utf-8") as file:
+        with open("logs/last_id.txt", "w+", encoding="utf-8") as file:
             file.write(str(self.users_counter))
 
     def check_users(self, users_data: dict):
@@ -121,7 +121,7 @@ class VkParser:
         with Database() as database:
             for user in data:
                 database.cursor.execute("INSERT INTO KirovUsers (vk_id) VALUES (?)", (user.get("id"),))
-        print("Данные записаны\n", '-'*40)
+        print("Данные записаны\n", "-" * 40)
 
     async def parse(self):
         requests_counter = 0
@@ -141,11 +141,11 @@ class VkParser:
                         #     file.write(json.dumps(data.get("response"), indent=4, ensure_ascii=False))
                         self.users_counter = self.temp_counter
                     else:
-                        with open("logs/errors.txt", "a", encoding="utf-8") as file:
+                        with open("logs/errors.txt", "a+", encoding="utf-8") as file:
                             file.write(f"Данные пользователей {self.temp_counter}-{self.users_counter} не записаны\n")
                         self.temp_counter = self.users_counter
                 except Exception as e:
-                    with open("logs/exeptions.txt", "a", encoding="utf-8") as file:
+                    with open("logs/exeptions.txt", "a+", encoding="utf-8") as file:
                         file.write(f"{self.temp_counter}-{self.users_counter}: {e}\n")
 
             if self.response_status == 200:
