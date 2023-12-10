@@ -1,0 +1,13 @@
+[MASTER]
+disable=
+    C0114, # missing-module-docstring
+    C0115, #(missing-class-docstring)
+    C0116, #(missing-function-docstring)
+    C0411,  #(wrong-import-order)
+    W0718, #(broad-exception-caught)
+
+[FORMAT]
+# Maximum number of characters on a single line.
+  max-line-length=120
+# Regexp for a line that is allowed to be longer than the limit.
+  ignore-long-lines=^\s*(# )?<?https?://\S+>?$

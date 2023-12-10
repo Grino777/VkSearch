@@ -1,0 +1,36 @@
+{
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "black-formatter.importStrategy": "fromEnvironment",
+    "python.terminal.activateEnvInCurrentTerminal": true, // автоматически активировать виртуальное окружение
+    "python.linting.enabled": true, // линтер включен
+    "files.autoSaveDelay": 5000, // автоматически сохранять файл при переключенни на другое окно
+    "editor.rulers": [
+        120 // рисует линию, где заканчивается 120-й символ строки
+    ],
+    "python.formatting.provider": "black", // использовать Black в качестве форматтера
+    "python.formatting.blackArgs": [
+        "--line-length", // длина строки 120 символов
+        "120"
+    ],
+    "python.linting.flake8Enabled": true, // использовать flake8 в качестве линтера
+    "python.linting.flake8Args": [
+        "--config=${workspaceFolder}/.flake8", // задаем конфигурацию в отдельном файле
+        // "--ignore=D100,D101,D102,D103,D104,D105,D106,D107",  // игнорировать ошибки, связаные с Docstrings
+        // "--exclude=migrations/,settings.py,venv/"  // не проверять каталоги migrations/,settings.py,venv/
+    ],
+    "editor.formatOnSave": true, // форматировать код, при сохранении - вот тут будет срабатывать Black
+    "editor.linkedEditing": true,
+    "python.envFile": "${workspaceFolder}/.env", // задание со звездочкой - нагуглите сами, для чего эта настройка =)
+    "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
+    "black-formatter.args": [
+        "--line-length",
+        "120"
+    ],
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "snake": {
+        "prefix": "snake",
+        "body": "${TM_SELECTED_TEXT/([A-Z][a-z]+$)|([A-Z][a-z]+)/${1:/downcase}${2:/downcase}${2:+_}/g}"
+    }
+}

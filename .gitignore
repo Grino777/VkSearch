@@ -1,0 +1,10 @@
+venv
+settings.py
+test.json
+vk.json
+json_tests
+db
+logs
+test.py
+test_db.py
+__pycache__
