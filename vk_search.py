@@ -1,3 +1,5 @@
+#!/venv/bin/python3
+
 from time import sleep
 from requests import ConnectionError
 import requests
