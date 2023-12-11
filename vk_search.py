@@ -14,7 +14,7 @@ class VkParser:
     SEARCH_CITY_ID = 66
 
     def __init__(self):
-        self.users_counter = 1
+        self.users_counter = 4_962_501
         self.ended = False
         self.offset = 50
         self.response_status = None
@@ -112,8 +112,6 @@ class VkParser:
         if result_data:
             result = [user for user in result_data if user.get("city") == self.SEARCH_CITY_ID]
             self.writing_data_to_database(result)
-        else:
-            self.ended = True
 
     def writing_data_to_database(self, data):
         """
@@ -127,10 +125,10 @@ class VkParser:
 
     async def parse(self):
         print('Начало скрипта')
-        requests_counter = 0
+        requests_counter = 3969
         url = ""
 
-        while not self.ended:  #!self.ended
+        while not self.ended:
             print(f"#Запрос №{requests_counter}")
             url = self.build_url()
 
@@ -151,12 +149,16 @@ class VkParser:
                     with open("logs/exeptions.txt", "a+", encoding="utf-8") as file:
                         file.write(f"{self.temp_counter}-{self.users_counter}: {e}\n")
 
+            if self.users_counter >= 850_000_000:
+                self.ended = True
+                print('Скрипт завершен!')
+
             if self.response_status == 200:
                 requests_counter += 1
             else:
                 sleep(3)
 
-            if requests_counter % 5:
+            if requests_counter % 5 == 0:
                 sleep(5)
 
         self.logging_parser()
