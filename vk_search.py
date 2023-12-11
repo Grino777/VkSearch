@@ -112,6 +112,8 @@ class VkParser:
         if result_data:
             result = [user for user in result_data if user.get("city") == self.SEARCH_CITY_ID]
             self.writing_data_to_database(result)
+        else:
+            print('Данных нет!\n', "-" * 40)
 
     def writing_data_to_database(self, data):
         """
@@ -155,6 +157,7 @@ class VkParser:
 
             if self.response_status == 200:
                 requests_counter += 1
+                sleep(1)
             else:
                 sleep(3)
 
