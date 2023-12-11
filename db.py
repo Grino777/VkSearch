@@ -6,7 +6,7 @@ class Database(object):
     """Класс базы данных sqlite3"""
 
     current_file = os.path.realpath(__file__)
-    DB_LOCATION = f"{os.path.dirname(current_file)}\\db\\Users_data.db"
+    DB_LOCATION = f"{os.path.dirname(current_file)}/db/Users_data.db"
 
     def __init__(self):
         """Инициализация DB"""

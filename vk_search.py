@@ -1,4 +1,4 @@
-#!/venv/bin/python3
+#!/usr/bin/python3
 
 from time import sleep
 from requests import ConnectionError
@@ -126,10 +126,11 @@ class VkParser:
         print("Данные записаны\n", "-" * 40)
 
     async def parse(self):
+        print('Начало скрипта')
         requests_counter = 0
         url = ""
 
-        while self.ended:  #!self.ended
+        while not self.ended:  #!self.ended
             print(f"#Запрос №{requests_counter}")
             url = self.build_url()
 
