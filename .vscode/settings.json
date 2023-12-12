@@ -1,31 +1,30 @@
 {
     "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
+        "editor.defaultFormatter": "eeyore.yapf",
+        "editor.insertSpaces": true,
+        "editor.tabSize": 4,
+        "editor.formatOnSave": true
     },
-    "black-formatter.importStrategy": "fromEnvironment",
     "python.terminal.activateEnvInCurrentTerminal": true, // автоматически активировать виртуальное окружение
     "python.linting.enabled": true, // линтер включен
     "files.autoSaveDelay": 5000, // автоматически сохранять файл при переключенни на другое окно
     "editor.rulers": [
         120 // рисует линию, где заканчивается 120-й символ строки
     ],
-    "python.formatting.provider": "black", // использовать Black в качестве форматтера
-    "python.formatting.blackArgs": [
-        "--line-length", // длина строки 120 символов
-        "120"
-    ],
     "python.linting.flake8Enabled": true, // использовать flake8 в качестве линтера
     "python.linting.flake8Args": [
         "--config=${workspaceFolder}/.flake8", // задаем конфигурацию в отдельном файле
         // "--ignore=D100,D101,D102,D103,D104,D105,D106,D107",  // игнорировать ошибки, связаные с Docstrings
         // "--exclude=migrations/,settings.py,venv/"  // не проверять каталоги migrations/,settings.py,venv/
-    ],
-    "editor.formatOnSave": true, // форматировать код, при сохранении - вот тут будет срабатывать Black
+    ], // форматировать код, при сохранении - вот тут будет срабатывать Black
     "editor.linkedEditing": true,
     "python.envFile": "${workspaceFolder}/.env", // 
-    "black-formatter.args": [
-        "--line-length",
-        "120"
+    // "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "python.linting.pylintPath": "pylint",
+    "editor.formatOnSave": true,
+    "python.formatting.provider": "yapf", // or "black" here
+    "python.linting.pylintEnabled": true,
+    "python.formatting.yapfArgs": [
+        "--style={based_on_style: google, column_limit: 80, indent_width: 2}"
     ],
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
 }

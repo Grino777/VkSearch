@@ -41,7 +41,8 @@ class Database(object):
         """Создать таблицу базы данных, если она еще не существует"""
         self.cursor.execute(
             """CREATE TABLE IF NOT EXISTS KirovUsers(
-                vk_id INTEGER NOT NULL UNIQUE
+                vk_id INTEGER NOT NULL UNIQUE,
+                sex INTEGER
             )"""
         )
 
