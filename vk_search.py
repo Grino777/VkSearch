@@ -101,7 +101,8 @@ class VkParser:
         print("Началась запись в БД")
         with Database() as database:
             for user in data:
-                database.cursor.execute("INSERT INTO KirovUsers (vk_id, sex) VALUES (?)", (user.get("id"), user.get("sex")))
+                database.cursor.execute("INSERT INTO KirovUsers (vk_id, sex) VALUES (?)",
+                                        (user.get("id"), user.get("sex")))
         print("Данные записаны\n", "-" * 40)
 
     async def parse(self):
@@ -116,9 +117,6 @@ class VkParser:
 
             print(f'Запросов выполнено: {self.requests_counter}\n')
             print(f'Пользователей обработано: {self.users_counter}')
-
-            await asyncio.sleep(1)
-            break
 
 
 if __name__ == "__main__":
