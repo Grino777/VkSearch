@@ -82,11 +82,13 @@ class Parser():
 
     async def parse(self):
         while self.users_counter <= self.users_counter and self.errors < 100:
+            urls_lists = []
+            for token in self.tokens:
+                urls = [self.build_final_url(token) for _ in range(5)]  # Создаем 5 урлов для одного токена
+                urls_lists.append(urls)
+                
             async with aiohttp.ClientSession() as session:
-                urls_lists = []
-                for token in self.tokens:
-                    urls = [self.build_final_url(token) for _ in range(5)]  # Создаем 5 урлов для одного токена
-                    urls_lists.append(urls)
+                
 
             break
 
