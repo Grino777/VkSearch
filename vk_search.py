@@ -1,24 +1,28 @@
-#!/usr/bin/python3
-
-import json
 import asyncio
+import aiohttp
 from db import Database
-import vk
-from asyncio import Task
-
-from settings import TOKEN_1, TOKEN_2, TOKEN_3, TOKEN_4, TOKEN_5, TOKEN_6, TOKEN_7, TOKEN_8, TOKEN_9, TOKEN_10
+from settings.tokens import TOKENS
+from aiohttp.client_exceptions import ClientError
 
 
-class VkParser:
-    SEARCH_CITY_ID = 66
+class Parser():
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.users_counter = 1  # ID пользователя с которого начинаем поиск
         self.requests_counter = 1  # Счетчик кол-ва выполненных запросов
         self.ended = 850_000_000  # ID пользователя на котором заканчиваем поиск
-        self.offset = 1000  # Шаг пользователей для запроса
-        self.errors = 0
-        self.tokens = [TOKEN_1, TOKEN_2, TOKEN_3, TOKEN_4, TOKEN_5, TOKEN_6, TOKEN_7, TOKEN_8, TOKEN_9, TOKEN_10]
+        self.offset = 50  # Шаг пользователей для запроса
+        self.errors = 0  # Кол-во ошибок за выполнение скрипта
+        self.users_recorded = 0
+        self.tokens = TOKENS[:2]
+        # self.tokens = [TOKEN_1]
+
+    def logging_parser(self) -> None:
+        """
+        Запись последнего ID.
+        """
+        with open("logs/last_id.txt", "w+", encoding="utf-8") as file:
+            file.write(str(self.users_counter))
 
     def increase_errors(self):
         self.errors = +1
@@ -35,92 +39,64 @@ class VkParser:
         """
         self.users_counter += self.offset
 
-    def logging_parser(self) -> None:
-        """
-        Запись последнего ID.
-        """
-        with open("logs/last_id.txt", "w+", encoding="utf-8") as file:
-            file.write(str(self.users_counter))
-
-    async def send_request_on_api(self, users, token):
+    async def send_request_on_api(self, session):
         """
         Отправляем запрос на vk api по сбилженой ссылке
         """
-        print("Запрос отправлен! Ожидаем...")
+        result = await session.get('http://localhost:5000')
 
-        api = vk.API(access_token=token, v="5.131")
+        # if ClientError
 
-        return api.users.get(user_ids=f"{users}", fields='city,sex')
+        return result.json
 
-    def generate_users_ids(self) -> str:
+    def build_api(self):
         """
-        Генерируем (offset) айдишников для отдельного подзапроса.
+            Создаем API запросы для execute method
+        """
+        result_api = ''
+
+        for _ in range(25):
+            start_id = self.users_counter
+            ids = ','.join([str(id) for id in range(start_id, start_id + self.offset + 1)])
+
+            result_api += f"API.users.get({{'user_ids':'{ids}','fields':'city,sex'}}),"
+            self.increase_users_counter()
+
+        return result_api
+
+    def build_final_url(self, token):
+        """
+            Билдим url для дальнейшего запроса на api.
         """
 
-        start_user_id = self.users_counter
+        result_api = self.build_api()
+        url = f"https://api.vk.com/method/execute?access_token={token}&v=5.199&code=return [{result_api}];"
 
-        users = [str(i) for i in range(start_user_id, start_user_id + self.offset)]
-        self.increase_users_counter()
-        users = ",".join(users)
-        return users
+        return url
 
-    def check_users(self, result: Task):
-        """
-        Проверем пользователя на "deactivated" и city_id
-        Если в execute-запросе все пользователи deactivated, то заканчиваем парсинг
-        """
-        self.increase_requests_counter()
-
-        if result.exception():
-            self.increase_errors()
-            with open('logs/errors.txt', 'a', encoding='utf-8') as file:
-                message = result.exception().message
-                params = result.exception().request_params
-
-                file.write(f'{message}, {params}\n')
-        else:
-            result_data = []
-
-            for item in result.result():
-                if "deactivated" not in item.keys():
-                    city = item.get("city", False)
-                    user_id = item.get("id")
-                    sex = item.get("sex", False)
-                    if city == self.SEARCH_CITY_ID:
-                        result_data.append({"id": user_id, "city": city, "sex": sex})
-
-            if result_data:
-                self.writing_data_to_database(result)
-            else:
-                print("Данных нет!\n", "-" * 40)
+    def check_users_data(self, data):
+        pass
 
     def writing_data_to_database(self, data):
-        """
-        Запись данных из запроса в БД
-        """
-        print("Началась запись в БД")
-        with Database() as database:
-            for user in data:
-                database.cursor.execute("INSERT INTO KirovUsers (vk_id, sex) VALUES (?)",
-                                        (user.get("id"), user.get("sex")))
-        print("Данные записаны\n", "-" * 40)
+        pass
 
     async def parse(self):
+        while self.users_counter <= self.users_counter and self.errors < 100:
+            async with aiohttp.ClientSession() as session:
+                urls_lists = []
+                for token in self.tokens:
+                    urls = [self.build_final_url(token) for _ in range(5)]  # Создаем 5 урлов для одного токена
+                    urls_lists.append(urls)
 
-        while (self.users_counter <= self.ended) and (self.errors <= 100):
-            done, _ = await asyncio.wait(
-                [self.send_request_on_api(self.generate_users_ids(), token) for token in self.tokens])
-            for response in done:
-                self.check_users(response)
-
-            self.logging_parser()
-
-            print(f'Запросов выполнено: {self.requests_counter}\n')
-            print(f'Пользователей обработано: {self.users_counter}')
+            break
 
 
-if __name__ == "__main__":
+async def main():
     db = Database()
     db.create_table()
-    parser = VkParser()
-    asyncio.run(parser.parse())
+    parser = Parser()
+    await parser.parse()
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

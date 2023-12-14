@@ -9,3 +9,7 @@ test.py
 test_db.py
 __pycache__
 tests
+modules
+settings
+app.py
+vk_search_test.py
