@@ -1,4 +1,5 @@
 import asyncio
+import json
 import aiohttp
 from db import Database
 from settings.tokens import TOKENS
@@ -14,7 +15,7 @@ class Parser():
         self.offset = 50  # Шаг пользователей для запроса
         self.errors = 0  # Кол-во ошибок за выполнение скрипта
         self.users_recorded = 0
-        self.tokens = TOKENS[:2]
+        self.tokens = list(TOKENS)
         # self.tokens = [TOKEN_1]
 
     def logging_parser(self) -> None:
@@ -39,15 +40,22 @@ class Parser():
         """
         self.users_counter += self.offset
 
-    async def send_request_on_api(self, session):
+    async def send_request_on_api(self, session, url):
         """
         Отправляем запрос на vk api по сбилженой ссылке
         """
-        result = await session.get('http://localhost:5000')
-
-        # if ClientError
-
-        return result.json
+        response = await session.get(url)
+        try:
+            if response.status == 200:
+                data = await response.json()
+                if data.get('error'):
+                    with open('logs/failed_request.txt', 'a', encoding='utf-8') as file:
+                        file.write(f'{url}\n')
+                return data
+        except ClientError as e:
+            self.increase_errors()
+            with open('logs/errors.txt', 'a', encoding='utf-8') as file:
+                file.write(f'{e}\n')
 
     def build_api(self):
         """
@@ -75,22 +83,33 @@ class Parser():
         return url
 
     def check_users_data(self, data):
-        pass
+
+        for i in data:
+            print(i)
+            # with open('tests/result_data.json', 'a', encoding='utf-8') as file:
+            #     file.write(json.dumps(i, indent=4, ensure_ascii=False))
 
     def writing_data_to_database(self, data):
         pass
 
     async def parse(self):
-        while self.users_counter <= self.users_counter and self.errors < 100:
+        counter = 1
+
+        # while self.users_counter <= self.ended and self.errors <= 100:
+        while counter <= 2:
             urls_lists = []
             for token in self.tokens:
                 urls = [self.build_final_url(token) for _ in range(5)]  # Создаем 5 урлов для одного токена
                 urls_lists.append(urls)
-                
-            async with aiohttp.ClientSession() as session:
-                
 
-            break
+            session = aiohttp.ClientSession()
+            for urls in urls_lists:
+                response = await asyncio.gather(*[self.send_request_on_api(session, url) for url in urls],
+                                                return_exceptions=True)
+
+                self.check_users_data(response)
+            await session.close()
+            counter += 1
 
 
 async def main():
