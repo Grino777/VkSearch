@@ -1,9 +1,11 @@
 import asyncio
 import json
+from time import gmtime, strftime, time
 import aiohttp
 from db import Database
 from settings.tokens import TOKENS
-from aiohttp.client_exceptions import ClientError
+from validator.user_validator import User
+import os
 
 
 class Parser():
@@ -15,14 +17,17 @@ class Parser():
         self.offset = 50  # Шаг пользователей для запроса
         self.errors = 0  # Кол-во ошибок за выполнение скрипта
         self.users_recorded = 0
-        self.tokens = list(TOKENS)
+        self.tokens = TOKENS
+        self.requests_completed = 0
+        self.requests_limit = 20
+        self.requests_with_error = 0
         # self.tokens = [TOKEN_1]
 
     def logging_parser(self) -> None:
         """
-        Запись последнего ID.
+            Запись последнего ID.
         """
-        with open("logs/last_id.txt", "w+", encoding="utf-8") as file:
+        with open("logs/last_id.txt", "w", encoding="utf-8") as file:
             file.write(str(self.users_counter))
 
     def increase_errors(self):
@@ -30,32 +35,15 @@ class Parser():
 
     def increase_requests_counter(self) -> None:
         """
-        Увеличиваем значение счетчика запросов на 1.
+            Увеличиваем значение счетчика запросов на 1.
         """
         self.requests_counter += 1
 
     def increase_users_counter(self) -> None:
         """
-        Увеличиваем значение счетчика пользователей на offset.
+            Увеличиваем значение счетчика пользователей на offset.
         """
         self.users_counter += self.offset
-
-    async def send_request_on_api(self, session, url):
-        """
-        Отправляем запрос на vk api по сбилженой ссылке
-        """
-        response = await session.get(url)
-        try:
-            if response.status == 200:
-                data = await response.json()
-                if data.get('error'):
-                    with open('logs/failed_request.txt', 'a', encoding='utf-8') as file:
-                        file.write(f'{url}\n')
-                return data
-        except ClientError as e:
-            self.increase_errors()
-            with open('logs/errors.txt', 'a', encoding='utf-8') as file:
-                file.write(f'{e}\n')
 
     def build_api(self):
         """
@@ -65,7 +53,7 @@ class Parser():
 
         for _ in range(25):
             start_id = self.users_counter
-            ids = ','.join([str(id) for id in range(start_id, start_id + self.offset + 1)])
+            ids = ','.join([str(id) for id in range(start_id, start_id + self.offset)])
 
             result_api += f"API.users.get({{'user_ids':'{ids}','fields':'city,sex'}}),"
             self.increase_users_counter()
@@ -82,41 +70,136 @@ class Parser():
 
         return url
 
-    def check_users_data(self, data):
-
-        for i in data:
-            print(i)
-            # with open('tests/result_data.json', 'a', encoding='utf-8') as file:
-            #     file.write(json.dumps(i, indent=4, ensure_ascii=False))
+    def get_validate_list(self, data):
+        result = []
+        for users in data:
+            for user in users:
+                user = {
+                    "id": user.get('id'),
+                    "sex": user.get('sex'),
+                    "city": user.get('city', False),
+                    "deactivated": user.get('deactivated', False)
+                }
+                if user.get('deactivated'):
+                    continue
+                try:
+                    result.append(User(**user))
+                except ValueError:
+                    continue
+        return result
 
     def writing_data_to_database(self, data):
-        pass
+        try:
+            self.users_recorded += len(data)
+            with Database() as database:
+                for user in data:
+                    database.cursor.execute("INSERT INTO KirovUsers (vk_id, sex) VALUES (?, ?)", (user.id, user.sex))
+        except Exception:
+            print('Ошибка записи в БД!')
+
+    def check_response(self, response_data):
+        """
+            Проверка данных всех ответов
+        """
+        if response_data:
+            for data in response_data:
+                try:
+                    result = [user for user in data]
+                    result = self.get_validate_list(result)
+                    self.writing_data_to_database(result)
+                    self.requests_completed += 1
+                except TypeError:
+                    continue
+
+    async def send_requests_on_api(self, session, url):
+        """
+        Отправляем запрос на vk api по сбилженой ссылке
+        """
+        try:
+            data = {}
+            async with session.get(url) as response:
+                data = str(await response.read()).replace('\\', '\\\\').replace("b\'", "").replace("]}'", ']}')
+                data = json.loads(data)
+
+                print(f'Request status: {response.status}')
+                if response.status == 200 and 'response' in data:
+                    data = data.get('response')
+                else:
+                    print(data)
+                    raise ValueError('Error sending requests', response.get('error', False))
+                return data
+        except Exception as e:
+            self.requests_with_error += 1
+            with open('logs/failed_request.txt', 'a', encoding='utf-8') as file:
+                file.write(f'{url}\n')
+            with open('logs/failed_request.txt', 'a', encoding='utf-8') as error_file:
+                error_file.write(f"{e}\n")
+
+    async def get_failed_requests(self):
+        with open('logs/failed_request.txt', 'r+', encoding='utf-8') as file:
+            urls = file.read().split('\n')
+            old_urls = [url for url in urls if url.startswith('https:')]
+            file.write('')
+
+        x = 10 - len(old_urls) % 10
+        old_urls.extend(['' for _ in range(x)])
+        chunk_size = 10
+        new_list = [old_urls[i:i + chunk_size] for i in range(0, len(old_urls), chunk_size)]
+
+        result = []
+
+        for urls in new_list:
+            async with aiohttp.ClientSession() as session:
+                response = await asyncio.gather(*[self.send_requests_on_api(session, url) for url in urls if url])
+                result.extend(response)
+            await asyncio.sleep(0.5)
+
+        self.check_response(result)
+
+        # async with aiohttp.ClientSession() as session:
+        #     resposes_data = await asyncio.gather(
+        #         *[self.send_requests_on_api(session, url) for url in urls])
+
+        # self.check_response(resposes_data)
 
     async def parse(self):
-        counter = 1
-
-        # while self.users_counter <= self.ended and self.errors <= 100:
-        while counter <= 2:
-            urls_lists = []
+        start = time()
+        while self.users_counter <= self.ended and self.errors <= 100:
+            urls_list = []
             for token in self.tokens:
-                urls = [self.build_final_url(token) for _ in range(5)]  # Создаем 5 урлов для одного токена
-                urls_lists.append(urls)
+                urls = [(self.build_final_url(token)) for _ in range(self.requests_limit)]
+                urls_list.extend(urls)
+            async with aiohttp.ClientSession() as session:
 
-            session = aiohttp.ClientSession()
-            for urls in urls_lists:
-                response = await asyncio.gather(*[self.send_request_on_api(session, url) for url in urls],
-                                                return_exceptions=True)
+                # Создаем n (self.requests_limit) урлов для одного токена
+                response = await asyncio.gather(
+                    *[self.send_requests_on_api(session=session, url=url) for url in urls_list])
 
-                self.check_users_data(response)
-            await session.close()
-            counter += 1
+            self.check_response(response)
+
+            self.logging_parser()
+
+            print("-" * 40)
+            print(f"Запросов выполнено: {self.requests_completed:_}")
+            print(f"Пользователей проверено: {self.users_counter:_}")
+            print(f"Непроверенных пользователей: {(self.ended - self.users_counter):_}")
+            print(f"Пользователей записано: {self.users_recorded:_}")
+            print(f"Запросов с ошибкой: {self.requests_with_error}")
+            print('Времент прошло: ', strftime('%H:%M:%S', gmtime(time() - start)))
+            print("-" * 40)
+            await asyncio.sleep(1)
+
+        print('=' * 15, 'ПАРСИНГ ЗАВЕРШЕН', '=' * 15)
 
 
 async def main():
+    os.makedirs('db', exist_ok=True)
+    os.makedirs('logs', exist_ok=True)
     db = Database()
     db.create_table()
     parser = Parser()
     await parser.parse()
+    # await parser.get_failed_requests()
 
 
 if __name__ == '__main__':

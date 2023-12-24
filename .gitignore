@@ -13,3 +13,5 @@ modules
 settings
 app.py
 vk_search_test.py
+Users_data.db
+tests

@@ -18,7 +18,6 @@
         // "--exclude=migrations/,settings.py,venv/"  // не проверять каталоги migrations/,settings.py,venv/
     ], // форматировать код, при сохранении - вот тут будет срабатывать Black
     "editor.linkedEditing": true,
-    "python.envFile": "${workspaceFolder}/.env", // 
     // "editor.defaultFormatter": "esbenp.prettier-vscode",
     "python.linting.pylintPath": "pylint",
     "editor.formatOnSave": true,
@@ -27,4 +26,7 @@
     "python.formatting.yapfArgs": [
         "--style={based_on_style: google, column_limit: 100, indent_width: 2}"
     ],
+    // "python.analysis.extraPaths": [
+    //     "./"
+    // ]
 }
