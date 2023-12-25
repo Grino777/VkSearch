@@ -1,5 +1,6 @@
 import asyncio
 import json
+from sqlite3 import IntegrityError
 from time import gmtime, strftime, time
 import aiohttp
 from db import Database
@@ -89,13 +90,19 @@ class Parser():
         return result
 
     def writing_data_to_database(self, data):
-        try:
-            self.users_recorded += len(data)
-            with Database() as database:
-                for user in data:
+        users = 0
+
+        with Database() as database:
+            for user in data:
+                try:
                     database.cursor.execute("INSERT INTO KirovUsers (vk_id, sex) VALUES (?, ?)", (user.id, user.sex))
-        except Exception:
-            print('Ошибка записи в БД!')
+                    users += 1
+                except IntegrityError:
+                    continue
+                except Exception as e:
+                    print(f'Ошибка записи в БД! {e}')
+
+        self.users_recorded += users
 
     def check_response(self, response_data):
         """
@@ -115,31 +122,33 @@ class Parser():
         """
         Отправляем запрос на vk api по сбилженой ссылке
         """
+        data = {}
         try:
-            data = {}
             async with session.get(url) as response:
-                data = str(await response.read()).replace('\\', '\\\\').replace("b\'", "").replace("]}'", ']}')
+                data = str(await response.text()).replace("b\'", "").replace("]}'", ']}')
+                data = fr'{data}'
                 data = json.loads(data)
 
-                print(f'Request status: {response.status}')
                 if response.status == 200 and 'response' in data:
                     data = data.get('response')
                 else:
-                    print(data)
-                    raise ValueError('Error sending requests', response.get('error', False))
-                return data
+                    error = None
+                    if 'error' in data:
+                        error = data.get('error').get('error_msg')
+                        raise ValueError(f'{error}')
         except Exception as e:
+            data = None
             self.requests_with_error += 1
             with open('logs/failed_request.txt', 'a', encoding='utf-8') as file:
                 file.write(f'{url}\n')
-            with open('logs/failed_request.txt', 'a', encoding='utf-8') as error_file:
+            with open('logs/errors.txt', 'a', encoding='utf-8') as error_file:
                 error_file.write(f"{e}\n")
+        return data
 
     async def get_failed_requests(self):
-        with open('logs/failed_request.txt', 'r+', encoding='utf-8') as file:
+        with open('logs/failed_request.txt', 'w+', encoding='utf-8') as file:
             urls = file.read().split('\n')
             old_urls = [url for url in urls if url.startswith('https:')]
-            file.write('')
 
         x = 10 - len(old_urls) % 10
         old_urls.extend(['' for _ in range(x)])
@@ -156,14 +165,10 @@ class Parser():
 
         self.check_response(result)
 
-        # async with aiohttp.ClientSession() as session:
-        #     resposes_data = await asyncio.gather(
-        #         *[self.send_requests_on_api(session, url) for url in urls])
-
-        # self.check_response(resposes_data)
-
     async def parse(self):
         start = time()
+        total_requests = len(self.tokens) * self.requests_limit
+
         while self.users_counter <= self.ended and self.errors <= 100:
             urls_list = []
             for token in self.tokens:
@@ -175,12 +180,17 @@ class Parser():
                 response = await asyncio.gather(
                     *[self.send_requests_on_api(session=session, url=url) for url in urls_list])
 
+            response = list(filter(None, response))
+
             self.check_response(response)
 
             self.logging_parser()
 
+            failed_requests = total_requests - len(response)
+
             print("-" * 40)
             print(f"Запросов выполнено: {self.requests_completed:_}")
+            print(f'Успешных запросов за цикл: {total_requests - failed_requests}/{total_requests}')
             print(f"Пользователей проверено: {self.users_counter:_}")
             print(f"Непроверенных пользователей: {(self.ended - self.users_counter):_}")
             print(f"Пользователей записано: {self.users_recorded:_}")
