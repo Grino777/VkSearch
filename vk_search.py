@@ -14,7 +14,8 @@ class Parser():
     def __init__(self):
         self.users_counter = 1  # ID пользователя с которого начинаем поиск
         self.requests_counter = 1  # Счетчик кол-ва выполненных запросов
-        self.ended = 850_000_000  # ID пользователя на котором заканчиваем поиск
+        self.ended = 150_000  # ID пользователя на котором заканчиваем поиск
+        # self.ended = 850_000_000  # ID пользователя на котором заканчиваем поиск
         self.offset = 50  # Шаг пользователей для запроса
         self.errors = 0  # Кол-во ошибок за выполнение скрипта
         self.users_recorded = 0
@@ -54,7 +55,8 @@ class Parser():
 
         for _ in range(25):
             start_id = self.users_counter
-            ids = ','.join([str(id) for id in range(start_id, start_id + self.offset)])
+            ids = ','.join(
+                [str(id) for id in range(start_id, start_id + self.offset)])
 
             result_api += f"API.users.get({{'user_ids':'{ids}','fields':'city,sex'}}),"
             self.increase_users_counter()
@@ -95,7 +97,9 @@ class Parser():
         with Database() as database:
             for user in data:
                 try:
-                    database.cursor.execute("INSERT INTO KirovUsers (vk_id, sex) VALUES (?, ?)", (user.id, user.sex))
+                    database.cursor.execute(
+                        "INSERT INTO KirovUsers (vk_id, sex) VALUES (?, ?)",
+                        (user.id, user.sex))
                     users += 1
                 except IntegrityError:
                     continue
@@ -125,9 +129,13 @@ class Parser():
         data = {}
         try:
             async with session.get(url) as response:
-                data = str(await response.text()).replace("b\'", "").replace("]}'", ']}')
-                data = fr'{data}'
-                data = json.loads(data)
+                try:
+                    data = await response.json()
+                except UnicodeDecodeError:
+                    data = str(await response.read())
+                    data = repr(data[1:-1]).replace("b\'", "").replace(
+                        "]}'", ']}').replace("\\\'", "").replace('\'', '')
+                    data = json.loads(data)
 
                 if response.status == 200 and 'response' in data:
                     data = data.get('response')
@@ -139,31 +147,41 @@ class Parser():
         except Exception as e:
             data = None
             self.requests_with_error += 1
-            with open('logs/failed_request.txt', 'a', encoding='utf-8') as file:
+            with open('logs/failed_request.txt', 'a',
+                      encoding='utf-8') as file:
                 file.write(f'{url}\n')
             with open('logs/errors.txt', 'a', encoding='utf-8') as error_file:
                 error_file.write(f"{e}\n")
         return data
 
     async def get_failed_requests(self):
-        with open('logs/failed_request.txt', 'w+', encoding='utf-8') as file:
+        print('Началась проверка невыполненных запросов')
+        with open('logs/failed_request.txt', 'r+', encoding='utf-8') as file:
             urls = file.read().split('\n')
             old_urls = [url for url in urls if url.startswith('https:')]
+            file.truncate(0)
 
         x = 10 - len(old_urls) % 10
         old_urls.extend(['' for _ in range(x)])
         chunk_size = 10
-        new_list = [old_urls[i:i + chunk_size] for i in range(0, len(old_urls), chunk_size)]
+        new_list = [
+            old_urls[i:i + chunk_size]
+            for i in range(0, len(old_urls), chunk_size)
+        ]
 
         result = []
 
         for urls in new_list:
             async with aiohttp.ClientSession() as session:
-                response = await asyncio.gather(*[self.send_requests_on_api(session, url) for url in urls if url])
+                response = await asyncio.gather(*[
+                    self.send_requests_on_api(session, url) for url in urls
+                    if url
+                ])
                 result.extend(response)
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0)
 
         self.check_response(result)
+        print('Проверка невыполненных запросов закончилась')
 
     async def parse(self):
         start = time()
@@ -172,13 +190,16 @@ class Parser():
         while self.users_counter <= self.ended and self.errors <= 100:
             urls_list = []
             for token in self.tokens:
-                urls = [(self.build_final_url(token)) for _ in range(self.requests_limit)]
+                urls = [(self.build_final_url(token))
+                        for _ in range(self.requests_limit)]
                 urls_list.extend(urls)
             async with aiohttp.ClientSession() as session:
 
                 # Создаем n (self.requests_limit) урлов для одного токена
-                response = await asyncio.gather(
-                    *[self.send_requests_on_api(session=session, url=url) for url in urls_list])
+                response = await asyncio.gather(*[
+                    self.send_requests_on_api(session=session, url=url)
+                    for url in urls_list
+                ])
 
             response = list(filter(None, response))
 
@@ -190,16 +211,21 @@ class Parser():
 
             print("-" * 40)
             print(f"Запросов выполнено: {self.requests_completed:_}")
-            print(f'Успешных запросов за цикл: {total_requests - failed_requests}/{total_requests}')
+            print(
+                f'Успешных запросов за цикл: {total_requests - failed_requests}/{total_requests}'
+            )
             print(f"Пользователей проверено: {self.users_counter:_}")
-            print(f"Непроверенных пользователей: {(self.ended - self.users_counter):_}")
+            print(
+                f"Непроверенных пользователей: {(self.ended - self.users_counter):_}"
+            )
             print(f"Пользователей записано: {self.users_recorded:_}")
             print(f"Запросов с ошибкой: {self.requests_with_error}")
-            print('Времент прошло: ', strftime('%H:%M:%S', gmtime(time() - start)))
+            print('Времент прошло: ',
+                  strftime('%H:%M:%S', gmtime(time() - start)))
             print("-" * 40)
             await asyncio.sleep(1)
 
-        print('=' * 15, 'ПАРСИНГ ЗАВЕРШЕН', '=' * 15)
+        print('=' * 15, 'ПАРСИНГ ЗАВЕРШЕН', '=' * 15, '\n')
 
 
 async def main():
@@ -209,7 +235,7 @@ async def main():
     db.create_table()
     parser = Parser()
     await parser.parse()
-    # await parser.get_failed_requests()
+    await parser.get_failed_requests()
 
 
 if __name__ == '__main__':
