@@ -6,6 +6,10 @@ __pycache__
 tests
 settings
 app.py
-vk_search_test.py
 backup_db
 logs_private
+db_test.py
+transfer.py
+db_sqlite.py
+.env
+.venv

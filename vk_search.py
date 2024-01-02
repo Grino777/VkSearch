@@ -1,17 +1,17 @@
 import asyncio
 import json
-from sqlite3 import IntegrityError
 from time import gmtime, strftime, time
 import aiohttp
 from db import Database
 from settings.tokens import TOKENS
 from validator.user_validator import User
 import os
+from psycopg2.errors import UniqueViolation  # pylint: disable = no-name-in-module
 
 
 class Parser():
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.users_counter = 1  # ID пользователя с которого начинаем поиск
         self.requests_counter = 1  # Счетчик кол-ва выполненных запросов
         self.ended = 850_000_000  # ID пользователя на котором заканчиваем поиск
@@ -22,7 +22,6 @@ class Parser():
         self.requests_completed = 0
         self.requests_limit = 20
         self.requests_with_error = 0
-        # self.tokens = [TOKEN_1]
 
     def logging_parser(self) -> None:
         """
@@ -31,7 +30,7 @@ class Parser():
         with open("logs/last_id.txt", "w", encoding="utf-8") as file:
             file.write(str(self.users_counter))
 
-    def increase_errors(self):
+    def increase_errors(self) -> None:
         self.errors = +1
 
     def increase_requests_counter(self) -> None:
@@ -46,7 +45,7 @@ class Parser():
         """
         self.users_counter += self.offset
 
-    def build_api(self):
+    def build_api(self) -> str:
         """
             Создаем API запросы для execute method
         """
@@ -62,7 +61,7 @@ class Parser():
 
         return result_api
 
-    def build_final_url(self, token):
+    def build_final_url(self, token) -> str:
         """
             Билдим url для дальнейшего запроса на api.
         """
@@ -72,7 +71,7 @@ class Parser():
 
         return url
 
-    def get_validate_list(self, data):
+    def get_validate_list(self, data):  # -> list[Any]:
         result = []
         for users in data:
             for user in users:
@@ -90,24 +89,24 @@ class Parser():
                     continue
         return result
 
-    def writing_data_to_database(self, data):
+    def writing_data_to_database(self, data) -> None:
         users = 0
 
-        with Database() as database:
+        with Database() as conn:
             for user in data:
                 try:
-                    database.cursor.execute(
-                        "INSERT INTO KirovUsers (vk_id, sex) VALUES (?, ?)",
-                        (user.id, user.sex))
+                    conn.cursor().execute(
+                        f"INSERT INTO KirovUsers (vk_id, sex) VALUES ({user.id}, {user.sex})"
+                    )
                     users += 1
-                except IntegrityError:
+                except UniqueViolation:
                     continue
                 except Exception as e:
                     print(f'Ошибка записи в БД! {e}')
 
         self.users_recorded += users
 
-    def check_response(self, response_data):
+    def check_response(self, response_data) -> None:
         """
             Проверка данных всех ответов
         """
@@ -121,7 +120,7 @@ class Parser():
                 except TypeError:
                     continue
 
-    async def send_requests_on_api(self, session, url):
+    async def send_requests_on_api(self, session, url):  # -> Any | None:
         """
         Отправляем запрос на vk api по сбилженой ссылке
         """
@@ -153,7 +152,7 @@ class Parser():
                 error_file.write(f"{e}\n")
         return data
 
-    async def get_failed_requests(self):
+    async def get_failed_requests(self) -> None:
         print('Началась проверка невыполненных запросов')
         with open('logs/failed_request.txt', 'r+', encoding='utf-8') as file:
             urls = file.read().split('\n')
@@ -182,7 +181,7 @@ class Parser():
         self.check_response(result)
         print('Проверка невыполненных запросов закончилась')
 
-    async def parse(self):
+    async def parse(self) -> None:
         start = time()
         total_requests = len(self.tokens) * self.requests_limit
 
@@ -228,7 +227,6 @@ class Parser():
 
 
 async def main():
-    os.makedirs('db', exist_ok=True)
     os.makedirs('logs', exist_ok=True)
     db = Database()
     db.create_table()
